@@ -18,16 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 🚫 NO queremos subir node_modules compilado en Ubuntu (incompatible con Azure)
-      - name: Remove node_modules
+      # 🧹 1. Limpieza preventiva: Asegura que no haya un node_modules sucio en el runner
+      - name: Clean existing node_modules
         run: rm -rf node_modules
 
-      - name: Set up Node.js version
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22.x'
-
-      # ❗ No hacemos npm install aquí para evitar compilar better-sqlite3 en GitHub (GLIBC rompe)
+      # 📦 2. Subir el código "limpio" a los artefactos de GitHub
+      # NOTA: No hacemos 'npm install' aquí. Solo empaquetamos el código fuente.
+      # Excluimos explícitamente node_modules y la carpeta .git para que el zip sea ligero y limpio.
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
@@ -35,7 +32,8 @@ jobs:
           path: |
             .
             !node_modules
-            !package-lock.json
+            !.git
+            !.github
 
   deploy:
     runs-on: ubuntu-latest
@@ -45,11 +43,13 @@ jobs:
       contents: read
 
     steps:
+      # 📥 3. Descargar el código limpio (sin node_modules)
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: node-app
-      
+
+      # 🔐 4. Login a Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -57,7 +57,9 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E6ED4F6DC5144C148B238BB127D5AFAA }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_BF3CB69D242B46438862D250755BED9D }}
 
-      # 🚀 Azure instalará better-sqlite3 con su GLIBC correcta
+      # 🚀 5. Desplegar
+      # Azure detectará que falta node_modules y ejecutará 'npm install' automáticamente
+      # gracias a la variable SCM_DO_BUILD_DURING_DEPLOYMENT=true
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
