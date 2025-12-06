@@ -51,9 +51,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: b7f3a74f-b720-46f4-9779-fcb0ad9fafc2
-          tenant-id: 7e8e7edb-bbdd-45a9-89db-9de5c5722681
-          subscription-id: 00678328-afad-4d99-95d0-72e7fe99f71b
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_5CCE4FF939C549E5AADD1018271E8373 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_C1D743E951114CD8BF63D660A887E660 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_7586703FECC34AEE9476A81C2C855C66 }}
 
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -62,5 +62,4 @@ jobs:
           app-name: 'invetariofacturacion'
           slot-name: 'Production'
           package: .
-
           
