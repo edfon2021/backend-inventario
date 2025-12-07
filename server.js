@@ -320,7 +320,7 @@ app.get("/api/ventas-detalle/:id", (req, res) => {
       SELECT
         d.id AS detalleId,
         p.sku,
-        d.nombreProducto AS nombre,
+        p.nombre,
         d.cantidad,
         d.precio,
         d.subtotal
