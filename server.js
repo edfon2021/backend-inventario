@@ -1,15 +1,37 @@
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
 const Database = require("better-sqlite3");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ================================
+// CREAR CARPETA Y BASE SI NO EXISTEN
+// ================================
+
+// Crear carpeta database si no existe
+if (!fs.existsSync("./database")) {
+  fs.mkdirSync("./database");
+  console.log("Carpeta 'database' creada.");
+}
+
+// Crear archivo inventario.db si no existe
+if (!fs.existsSync("./database/inventario.db")) {
+  fs.writeFileSync("./database/inventario.db", "");
+  console.log("Base de datos 'inventario.db' creada.");
+}
+
 // Base de datos
 const db = new Database("./database/inventario.db");
 
-// Crear tabla si no existe
+
+// ============================================
+// CREACIÓN DE TABLAS
+// ============================================
+
+// Tabla productos
 db.prepare(`
   CREATE TABLE IF NOT EXISTS productos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +48,7 @@ db.prepare(`
   )
 `).run();
 
-// Crea tabla Ventas
+// Tabla Ventas
 db.prepare(`
   CREATE TABLE IF NOT EXISTS ventas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,7 +61,7 @@ db.prepare(`
   )
 `).run();
 
-// Crea tabla venta detalles
+// Tabla Detalles de Venta
 db.prepare(`
   CREATE TABLE IF NOT EXISTS ventas_detalles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +75,6 @@ db.prepare(`
     FOREIGN KEY (productoId) REFERENCES productos(id)
   )
 `).run();
-
 
 // Tabla Proveedores
 db.prepare(`
@@ -81,7 +102,11 @@ db.prepare(`
 `).run();
 
 
-// Endpoint: crear producto
+// ============================================
+// ENDPOINTS PRODUCTOS
+// ============================================
+
+// Crear producto
 app.post("/api/productos", (req, res) => {
   const {
     sku, nombre, categoria, subcategoria,
@@ -107,13 +132,13 @@ app.post("/api/productos", (req, res) => {
   res.json({ success: true, id: result.lastInsertRowid });
 });
 
-// Endpoint: listar productos
+// Listar productos
 app.get("/api/productos", (req, res) => {
   const productos = db.prepare("SELECT * FROM productos").all();
   res.json(productos);
 });
 
-// Endpoint: actualizar producto
+// Actualizar producto
 app.put("/api/productos/:id", (req, res) => {
   const { id } = req.params;
   const { precioCompra, precioVenta, cantidad } = req.body;
@@ -129,17 +154,15 @@ app.put("/api/productos/:id", (req, res) => {
   res.json({ success: true });
 });
 
-// Eliminar productos
+// Eliminar producto
 app.delete("/api/productos/:id", (req, res) => {
   const { id } = req.params;
-
   const stmt = db.prepare("DELETE FROM productos WHERE id = ?");
   const result = stmt.run(id);
-
   res.json({ success: true, deleted: result.changes });
 });
 
-// Obtener productos del inventario
+// Listar inventario
 app.get("/api/inventario", (req, res) => {
   try {
     const productos = db.prepare("SELECT * FROM productos").all();
@@ -150,7 +173,12 @@ app.get("/api/inventario", (req, res) => {
   }
 });
 
-// Endpoint Ventas
+
+// ============================================
+// ENDPOINTS VENTAS
+// ============================================
+
+// Registrar venta
 app.post("/api/ventas", (req, res) => {
   try {
     const { cliente, detalles, total, fecha } = req.body;
@@ -198,7 +226,7 @@ app.post("/api/ventas", (req, res) => {
   }
 });
 
-// Endpoint ventas
+// Listar ventas
 app.get("/api/ventas", (req, res) => {
   try {
     const ventas = db.prepare("SELECT * FROM ventas ORDER BY id DESC").all();
@@ -208,7 +236,11 @@ app.get("/api/ventas", (req, res) => {
   }
 });
 
-// Endpoint Dashboard
+
+// ============================================
+// ENDPOINT DASHBOARD
+// ============================================
+
 app.get("/api/dashboard-subcategorias", (req, res) => {
   try {
     const rows = db.prepare(`
@@ -252,6 +284,65 @@ app.get("/api/dashboard-subcategorias", (req, res) => {
   }
 });
 
+// ============================================
+// ENDPOINT RESUMEN DE VENTAS
+// ============================================
+
+app.get("/api/ventas-resumen", (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        v.id AS ventaId,
+        v.nombreCliente || ' ' || v.apellidosCliente AS cliente,
+        v.total,
+        v.fecha
+      FROM ventas v
+      ORDER BY v.id DESC
+    `).all();
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error("Error al obtener resumen de ventas:", err);
+    res.status(500).json({ error: "Error interno al obtener resumen de ventas" });
+  }
+});
+
+// ============================================
+// ENDPOINT DETALLE DE UNA VENTA
+// ============================================
+
+app.get("/api/ventas-detalle/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const rows = db.prepare(`
+      SELECT
+        d.id AS detalleId,
+        p.sku,
+        d.nombreProducto AS nombre,
+        d.cantidad,
+        d.precio,
+        d.subtotal
+      FROM ventas_detalles d
+      JOIN productos p ON d.productoId = p.id
+      WHERE d.ventaId = ?
+      ORDER BY d.id ASC
+    `).all(id);
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error("Error al obtener detalle de venta:", err);
+    res.status(500).json({ error: "Error interno al obtener detalle de venta" });
+  }
+});
+
+
+// ============================================
+// ENDPOINTS PROVEEDORES
+// ============================================
+
 // Crear proveedor
 app.post("/api/proveedores", (req, res) => {
   try {
@@ -286,6 +377,11 @@ app.get("/api/proveedores", (req, res) => {
     res.status(500).json({ error: "Error interno al obtener proveedores" });
   }
 });
+
+
+// ============================================
+// ENDPOINTS PEDIDOS
+// ============================================
 
 // Registrar pedido
 app.post("/api/pedidos", (req, res) => {
@@ -343,7 +439,10 @@ app.get("/api/pedidos-detalle", (req, res) => {
 });
 
 
-// ------------ PUERTO PARA AZURE ----------
+// =================================================
+// PUERTO
+// =================================================
+
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
   console.log(`Servidor ejecutándose en el puerto ${port}`);
