@@ -54,6 +54,33 @@ db.prepare(`
   )
 `).run();
 
+
+// Tabla Proveedores
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS proveedores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre TEXT NOT NULL,
+    telefono TEXT,
+    email TEXT
+  )
+`).run();
+
+// Tabla Pedidos
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS pedidos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha TEXT DEFAULT CURRENT_TIMESTAMP,
+    precioCompra REAL,
+    precioVenta REAL,
+    productoId INTEGER,
+    proveedorId INTEGER,
+    cantidad INTEGER,
+    FOREIGN KEY (productoId) REFERENCES productos(id),
+    FOREIGN KEY (proveedorId) REFERENCES proveedores(id)
+  )
+`).run();
+
+
 // Endpoint: crear producto
 app.post("/api/productos", (req, res) => {
   const {
@@ -224,6 +251,97 @@ app.get("/api/dashboard-subcategorias", (req, res) => {
     res.status(500).json({ error: "Error generando datos del dashboard" });
   }
 });
+
+// Crear proveedor
+app.post("/api/proveedores", (req, res) => {
+  try {
+    const { nombre, telefono, email } = req.body;
+
+    if (!nombre) {
+      return res.status(400).json({ error: "El nombre del proveedor es obligatorio" });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO proveedores (nombre, telefono, email)
+      VALUES (?, ?, ?)
+    `);
+
+    const result = stmt.run(nombre, telefono, email);
+
+    res.json({ success: true, id: result.lastInsertRowid });
+
+  } catch (err) {
+    console.error("Error al agregar proveedor:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// Listar proveedores
+app.get("/api/proveedores", (req, res) => {
+  try {
+    const proveedores = db.prepare("SELECT * FROM proveedores").all();
+    res.json(proveedores);
+  } catch (err) {
+    console.error("Error al obtener proveedores:", err);
+    res.status(500).json({ error: "Error interno al obtener proveedores" });
+  }
+});
+
+// Registrar pedido
+app.post("/api/pedidos", (req, res) => {
+  try {
+    const { fecha, precioCompra, precioVenta, productoId, proveedorId, cantidad } = req.body;
+
+    if (!productoId || !proveedorId || !cantidad) {
+      return res.status(400).json({ error: "Datos incompletos para registrar pedido" });
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO pedidos (fecha, precioCompra, precioVenta, productoId, proveedorId, cantidad)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = stmt.run(
+      fecha || new Date().toISOString(),
+      precioCompra,
+      precioVenta,
+      productoId,
+      proveedorId,
+      cantidad
+    );
+
+    res.json({ success: true, id: result.lastInsertRowid });
+
+  } catch (err) {
+    console.error("Error al registrar pedido:", err);
+    res.status(500).json({ error: "Error interno al registrar pedido" });
+  }
+});
+
+// Obtener detalles de pedidos
+app.get("/api/pedidos-detalle", (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT 
+        p.id AS pedidoId,
+        prod.nombre AS producto,
+        prov.nombre AS proveedor,
+        p.cantidad,
+        p.precioCompra
+      FROM pedidos p
+      JOIN productos prod ON p.productoId = prod.id
+      JOIN proveedores prov ON p.proveedorId = prov.id
+      ORDER BY p.id DESC
+    `).all();
+
+    res.json(rows);
+
+  } catch (err) {
+    console.error("Error al obtener detalles de pedidos:", err);
+    res.status(500).json({ error: "Error interno al obtener pedidos" });
+  }
+});
+
 
 // ------------ PUERTO PARA AZURE ----------
 const port = process.env.PORT || 3001;
