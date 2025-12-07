@@ -378,6 +378,25 @@ app.get("/api/proveedores", (req, res) => {
   }
 });
 
+// Elimina proveedores 
+app.delete("/api/proveedores/:id", (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const stmt = db.prepare("DELETE FROM proveedores WHERE id = ?");
+    const result = stmt.run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: "Proveedor no encontrado" });
+    }
+
+    res.json({ success: true, deleted: result.changes });
+    
+  } catch (err) {
+    console.error("Error eliminando proveedor:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 
 // ============================================
 // ENDPOINTS PEDIDOS
